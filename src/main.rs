@@ -3,7 +3,6 @@ use crossterm::{
     ExecutableCommand,
 };
 use opentui_rust::{terminal_size, Renderer, Rgba, Style};
-use std::collections::HashMap;
 use std::env::vars_os;
 use std::fs;
 use std::io::stdout;
@@ -56,9 +55,9 @@ fn get_sidebar_items() -> Vec<SidebarItem> {
     items
 }
 
-fn parse_env_file(path: &PathBuf) -> HashMap<String, String> {
+fn parse_env_file(path: &PathBuf) -> Vec<(String, String)> {
     let content = fs::read_to_string(path).unwrap_or_default();
-    let mut vars = HashMap::new();
+    let mut vars: Vec<(String, String)> = Vec::new();
 
     for line in content.lines() {
         let line = line.trim();
@@ -69,7 +68,7 @@ fn parse_env_file(path: &PathBuf) -> HashMap<String, String> {
             let key = key.trim().to_string();
             let val = val.trim().trim_matches('"').trim_matches('\'').to_string();
             if !key.is_empty() {
-                vars.insert(key, val);
+                vars.push((key, val));
             }
         }
     }
@@ -95,14 +94,14 @@ fn main() -> std::io::Result<()> {
         })
         .collect();
 
-    let mut current_content: HashMap<String, String> = HashMap::new();
+    let mut current_content: Vec<(String, String)> = Vec::new();
     if let Some(item) = sidebar_items.get(selected_idx) {
         match item {
             SidebarItem::File(path) => {
                 current_content = parse_env_file(path);
             }
             SidebarItem::SystemEnv => {
-                current_content = env_vars.iter().cloned().collect();
+                current_content = env_vars.clone();
             }
         }
     }
@@ -260,10 +259,7 @@ fn main() -> std::io::Result<()> {
         let key_max_len = (width - sidebar_width - padding - 4) as u32;
         let val_max_len = (width - sidebar_width - padding - 4) as u32;
 
-        let content_vars: Vec<(String, String)> = current_content
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let content_vars = &current_content;
 
         let visible_rows = height.saturating_sub(4);
 
@@ -350,7 +346,7 @@ fn main() -> std::io::Result<()> {
                                         current_content = parse_env_file(path);
                                     }
                                     SidebarItem::SystemEnv => {
-                                        current_content = env_vars.iter().cloned().collect();
+                                        current_content = env_vars.clone();
                                     }
                                 }
                             }
@@ -429,7 +425,7 @@ fn main() -> std::io::Result<()> {
                                             current_content = parse_env_file(path);
                                         }
                                         SidebarItem::SystemEnv => {
-                                            current_content = env_vars.iter().cloned().collect();
+                                            current_content = env_vars.clone();
                                         }
                                     }
                                 }
@@ -449,7 +445,7 @@ fn main() -> std::io::Result<()> {
                                             current_content = parse_env_file(path);
                                         }
                                         SidebarItem::SystemEnv => {
-                                            current_content = env_vars.iter().cloned().collect();
+                                            current_content = env_vars.clone();
                                         }
                                     }
                                 }

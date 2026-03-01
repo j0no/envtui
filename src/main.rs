@@ -11,7 +11,6 @@ use std::path::PathBuf;
 
 const CYAN: Rgba = Rgba::new(0.0, 1.0, 1.0, 1.0);
 const GRAY: Rgba = Rgba::new(0.5, 0.5, 0.5, 1.0);
-const DARK_GRAY: Rgba = Rgba::new(0.2, 0.2, 0.2, 1.0);
 const SELECTED_BG: Rgba = Rgba::new(0.3, 0.3, 0.5, 1.0);
 const YELLOW: Rgba = Rgba::new(1.0, 1.0, 0.0, 1.0);
 
@@ -138,7 +137,7 @@ fn main() -> std::io::Result<()> {
 
         for y in 0..height {
             for x in 0..sidebar_width {
-                buffer.draw_text(x as u32, y as u32, " ", Style::bg(DARK_GRAY));
+                buffer.draw_text(x as u32, y as u32, " ", Style::bg(Rgba::BLACK));
             }
         }
 

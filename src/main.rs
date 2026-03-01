@@ -68,7 +68,9 @@ fn parse_env_file(path: &PathBuf) -> HashMap<String, String> {
         if let Some((key, val)) = line.split_once('=') {
             let key = key.trim().to_string();
             let val = val.trim().trim_matches('"').trim_matches('\'').to_string();
-            vars.insert(key, val);
+            if !key.is_empty() {
+                vars.insert(key, val);
+            }
         }
     }
 
@@ -122,7 +124,7 @@ fn main() -> std::io::Result<()> {
         let height = term_height as usize;
 
         let sidebar_width = 25.min(width / 3);
-        let main_width = width.saturating_sub(sidebar_width);
+        let _main_width = width.saturating_sub(sidebar_width);
 
         buffer.clear(Rgba::BLACK);
 
@@ -135,29 +137,43 @@ fn main() -> std::io::Result<()> {
         let sidebar_visible = height.saturating_sub(2);
         let total_files = sidebar_items.len();
 
-        let sidebar_title_style = if focused_panel == 0 {
-            Style::fg(CYAN).merge(Style::bold()).merge(Style::inverse())
-        } else {
-            Style::fg(CYAN).merge(Style::bold())
-        };
-        buffer.draw_text(0, 0, "Select Source", sidebar_title_style);
+        let border_color = if focused_panel == 0 { CYAN } else { GRAY };
 
-        let sidebar_separator = if focused_panel == 0 {
-            "█".repeat(sidebar_width.saturating_sub(1))
-        } else {
-            "─".repeat(sidebar_width.saturating_sub(1))
-        };
-        let sep_color = if focused_panel == 0 { CYAN } else { GRAY };
-        buffer.draw_text(1, 1, &sidebar_separator, Style::fg(sep_color));
+        buffer.draw_text(0, 0, "┌", Style::fg(border_color));
+        buffer.draw_text((sidebar_width - 1) as u32, 0, "┐", Style::fg(border_color));
+        for x in 1..sidebar_width - 1 {
+            buffer.draw_text(x as u32, 0, "─", Style::fg(border_color));
+        }
+        for y in 1..height - 1 {
+            buffer.draw_text(0, y as u32, "│", Style::fg(border_color));
+            buffer.draw_text(
+                (sidebar_width - 1) as u32,
+                y as u32,
+                "│",
+                Style::fg(border_color),
+            );
+        }
+        buffer.draw_text(0, (height - 1) as u32, "└", Style::fg(border_color));
+        buffer.draw_text(
+            (sidebar_width - 1) as u32,
+            (height - 1) as u32,
+            "┘",
+            Style::fg(border_color),
+        );
+        for x in 1..sidebar_width - 1 {
+            buffer.draw_text(x as u32, (height - 1) as u32, "─", Style::fg(border_color));
+        }
+
+        buffer.draw_text(1, 0, "Select Source", Style::fg(GRAY));
 
         let sidebar_focus_indicator = if focused_panel == 0 { "» " } else { "  " };
-        buffer.draw_text(0, 2, sidebar_focus_indicator, Style::fg(CYAN));
+        buffer.draw_text(1, 1, sidebar_focus_indicator, Style::fg(CYAN));
 
         for (i, item) in sidebar_items
             .iter()
             .enumerate()
             .skip(sidebar_scroll)
-            .take(sidebar_visible)
+            .take(sidebar_visible - 2)
         {
             let line_idx = i - sidebar_scroll;
             let y = (2 + line_idx) as u32;
@@ -170,7 +186,7 @@ fn main() -> std::io::Result<()> {
             let is_selected = i == selected_idx;
 
             if is_selected {
-                for x in 0..sidebar_width {
+                for x in 1..sidebar_width - 1 {
                     buffer.draw_text(x as u32, y, " ", Style::bg(SELECTED_BG));
                 }
                 buffer.draw_text(
@@ -184,26 +200,49 @@ fn main() -> std::io::Result<()> {
             }
         }
 
-        buffer.draw_text(
-            sidebar_width as u32 + 1,
-            0,
-            "Variables",
-            Style::fg(CYAN).merge(Style::bold()),
-        );
+        let padding = 2;
+        let content_x = sidebar_width as u32 + 2;
+        let content_padding_x = content_x + padding as u32;
+        let _content_width = width - sidebar_width - padding;
 
-        let _separator = "=".repeat(main_width.saturating_sub(2));
-        let content_separator = if focused_panel == 1 {
-            "█".repeat(main_width.saturating_sub(2))
-        } else {
-            "=".repeat(main_width.saturating_sub(2))
-        };
-        let content_sep_color = if focused_panel == 1 { CYAN } else { GRAY };
+        let content_border_color = if focused_panel == 1 { CYAN } else { GRAY };
+
+        buffer.draw_text(content_x, 0, "┌", Style::fg(content_border_color));
+        buffer.draw_text((width - 1) as u32, 0, "┐", Style::fg(content_border_color));
+        for x in sidebar_width + 1..width - 1 {
+            buffer.draw_text(x as u32, 0, "─", Style::fg(content_border_color));
+        }
+        for y in 1..height - 1 {
+            buffer.draw_text(content_x, y as u32, "│", Style::fg(content_border_color));
+            buffer.draw_text(
+                (width - 1) as u32,
+                y as u32,
+                "│",
+                Style::fg(content_border_color),
+            );
+        }
         buffer.draw_text(
-            sidebar_width as u32 + 1,
-            1,
-            &content_separator,
-            Style::fg(content_sep_color),
+            content_x,
+            (height - 1) as u32,
+            "└",
+            Style::fg(content_border_color),
         );
+        buffer.draw_text(
+            (width - 1) as u32,
+            (height - 1) as u32,
+            "┘",
+            Style::fg(content_border_color),
+        );
+        for x in sidebar_width + 1..width - 1 {
+            buffer.draw_text(
+                x as u32,
+                (height - 1) as u32,
+                "─",
+                Style::fg(content_border_color),
+            );
+        }
+
+        buffer.draw_text(content_x + 1, 0, "Variables", Style::fg(GRAY));
 
         let title = match sidebar_items.get(selected_idx) {
             Some(SidebarItem::File(path)) => {
@@ -213,30 +252,20 @@ fn main() -> std::io::Result<()> {
             None => "No source",
         };
 
-        let content_title_style = if focused_panel == 1 {
-            Style::fg(YELLOW).merge(Style::inverse())
-        } else {
-            Style::fg(YELLOW)
-        };
-        buffer.draw_text(sidebar_width as u32 + 1, 2, title, content_title_style);
+        buffer.draw_text(content_padding_x, 1, title, Style::fg(YELLOW));
 
         let content_focus_indicator = if focused_panel == 1 { "» " } else { "  " };
-        buffer.draw_text(
-            sidebar_width as u32,
-            2,
-            content_focus_indicator,
-            Style::fg(CYAN),
-        );
+        buffer.draw_text(content_x, 1, content_focus_indicator, Style::fg(CYAN));
 
-        let key_max_len = main_width.saturating_sub(4);
-        let val_max_len = main_width.saturating_sub(4);
+        let key_max_len = (width - sidebar_width - padding - 4) as u32;
+        let val_max_len = (width - sidebar_width - padding - 4) as u32;
 
         let content_vars: Vec<(String, String)> = current_content
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
 
-        let visible_rows = height.saturating_sub(5);
+        let visible_rows = height.saturating_sub(4);
 
         for (i, (key, val)) in content_vars
             .iter()
@@ -245,32 +274,32 @@ fn main() -> std::io::Result<()> {
             .take(visible_rows)
         {
             let line_idx = i - scroll_offset;
-            let y_key: u32 = (4 + line_idx * 2) as u32;
-            let y_val: u32 = (5 + line_idx * 2) as u32;
+            let y_key: u32 = (3 + line_idx * 2) as u32;
+            let y_val: u32 = (4 + line_idx * 2) as u32;
 
-            if y_val as usize >= height {
+            if y_val as usize >= height - 1 {
                 break;
             }
 
-            let key_display = if key.len() > key_max_len {
-                format!("{}...", &key[..key_max_len.saturating_sub(3)])
+            let key_display = if key.len() > key_max_len as usize {
+                format!("{}...", &key[..(key_max_len as usize).saturating_sub(3)])
             } else {
                 key.clone()
             };
-            let val_display = if val.len() > val_max_len {
-                format!("{}...", &val[..val_max_len.saturating_sub(3)])
+            let val_display = if val.len() > val_max_len as usize {
+                format!("{}...", &val[..(val_max_len as usize).saturating_sub(3)])
             } else {
                 val.clone()
             };
 
             buffer.draw_text(
-                sidebar_width as u32 + 1,
+                content_padding_x,
                 y_key,
                 &key_display,
                 Style::fg(Rgba::GREEN),
             );
             buffer.draw_text(
-                sidebar_width as u32 + 1,
+                content_padding_x,
                 y_val,
                 &val_display,
                 Style::fg(Rgba::WHITE),
@@ -315,6 +344,16 @@ fn main() -> std::io::Result<()> {
                         }
                         KeyCode::Tab => {
                             focused_panel = if focused_panel == 0 { 1 } else { 0 };
+                            if let Some(item) = sidebar_items.get(selected_idx) {
+                                match item {
+                                    SidebarItem::File(path) => {
+                                        current_content = parse_env_file(path);
+                                    }
+                                    SidebarItem::SystemEnv => {
+                                        current_content = env_vars.iter().cloned().collect();
+                                    }
+                                }
+                            }
                         }
                         KeyCode::Up => {
                             if focused_panel == 0 {
@@ -323,6 +362,17 @@ fn main() -> std::io::Result<()> {
                                 }
                                 if selected_idx > 0 {
                                     selected_idx -= 1;
+                                    if let Some(item) = sidebar_items.get(selected_idx) {
+                                        match item {
+                                            SidebarItem::File(path) => {
+                                                current_content = parse_env_file(path);
+                                            }
+                                            SidebarItem::SystemEnv => {
+                                                current_content =
+                                                    env_vars.iter().cloned().collect();
+                                            }
+                                        }
+                                    }
                                 }
                             } else if scroll_offset >= 2 {
                                 scroll_offset -= 2;
@@ -373,6 +423,16 @@ fn main() -> std::io::Result<()> {
                         KeyCode::Left => {
                             if focused_panel == 1 {
                                 focused_panel = 0;
+                                if let Some(item) = sidebar_items.get(selected_idx) {
+                                    match item {
+                                        SidebarItem::File(path) => {
+                                            current_content = parse_env_file(path);
+                                        }
+                                        SidebarItem::SystemEnv => {
+                                            current_content = env_vars.iter().cloned().collect();
+                                        }
+                                    }
+                                }
                             }
                         }
                         KeyCode::Right => {

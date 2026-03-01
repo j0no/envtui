@@ -3,6 +3,7 @@ use crossterm::{
     ExecutableCommand,
 };
 use opentui_rust::{terminal_size, Renderer, Rgba, Style};
+use std::collections::HashMap;
 use std::env::vars_os;
 use std::fs;
 use std::io::stdout;
@@ -76,14 +77,31 @@ fn parse_env_file(path: &PathBuf) -> Vec<(String, String)> {
     vars
 }
 
+fn switch_to_item(
+    idx: usize,
+    sidebar_items: &[SidebarItem],
+    env_vars: &[(String, String)],
+    scroll_offsets: &mut HashMap<usize, usize>,
+) -> (Vec<(String, String)>, usize) {
+    let scroll_offset = *scroll_offsets.entry(idx).or_insert(0);
+
+    let content = match sidebar_items.get(idx) {
+        Some(SidebarItem::File(path)) => parse_env_file(path),
+        Some(SidebarItem::SystemEnv) => env_vars.to_vec(),
+        None => Vec::new(),
+    };
+
+    (content, scroll_offset)
+}
+
 fn main() -> std::io::Result<()> {
     let (width, height) = get_terminal_size();
     let mut renderer = Renderer::new(width, height)?;
     let mut running = true;
-    let mut scroll_offset: usize = 0;
     let mut sidebar_scroll: usize = 0;
     let mut selected_idx: usize = 0;
     let mut focused_panel: usize = 0;
+    let mut scroll_offsets: HashMap<usize, usize> = HashMap::new();
 
     let sidebar_items = get_sidebar_items();
     let env_vars: Vec<(String, String)> = vars_os()
@@ -94,17 +112,8 @@ fn main() -> std::io::Result<()> {
         })
         .collect();
 
-    let mut current_content: Vec<(String, String)> = Vec::new();
-    if let Some(item) = sidebar_items.get(selected_idx) {
-        match item {
-            SidebarItem::File(path) => {
-                current_content = parse_env_file(path);
-            }
-            SidebarItem::SystemEnv => {
-                current_content = env_vars.clone();
-            }
-        }
-    }
+    let (mut current_content, mut scroll_offset) =
+        switch_to_item(selected_idx, &sidebar_items, &env_vars, &mut scroll_offsets);
 
     stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
     crossterm::terminal::enable_raw_mode()?;
@@ -134,7 +143,7 @@ fn main() -> std::io::Result<()> {
         }
 
         let sidebar_visible = height.saturating_sub(2);
-        let total_files = sidebar_items.len();
+        let _total_files = sidebar_items.len();
 
         let border_color = if focused_panel == 0 { CYAN } else { GRAY };
 
@@ -261,6 +270,14 @@ fn main() -> std::io::Result<()> {
 
         let content_vars = &current_content;
 
+        let scroll_info = format!(
+            " ({}/{})",
+            scroll_offset / 2 + 1,
+            (content_vars.len() * 2 + 1) / 2
+        );
+        let scroll_x = (content_padding_x as usize + title.len()) as u32;
+        buffer.draw_text(scroll_x, 1, &scroll_info, Style::fg(GRAY));
+
         let visible_rows = height.saturating_sub(4);
 
         for (i, (key, val)) in content_vars
@@ -302,28 +319,9 @@ fn main() -> std::io::Result<()> {
             );
         }
 
-        let scroll_info = format!(
-            "Scroll: {}/{} | Items: {} | {} selected",
-            scroll_offset / 2 + 1,
-            (content_vars.len() * 2 + 1) / 2,
-            total_files,
-            match sidebar_items.get(selected_idx) {
-                Some(SidebarItem::File(path)) =>
-                    path.file_name().and_then(|n| n.to_str()).unwrap_or("?"),
-                Some(SidebarItem::SystemEnv) => "<System Env>",
-                None => "None",
-            }
-        );
+        let help = "(arrows: move, Tab: switch, Ctrl+C: quit)";
         let footer_y = (height - 1) as u32;
-        buffer.draw_text(1, footer_y, &scroll_info, Style::fg(GRAY));
-
-        let help = "(arrows: move, Ctrl+C: quit)";
-        buffer.draw_text(
-            (width.saturating_sub(help.len())) as u32,
-            footer_y,
-            help,
-            Style::fg(GRAY),
-        );
+        buffer.draw_text(1, footer_y, &help, Style::fg(GRAY));
 
         renderer.present()?;
 
@@ -339,17 +337,16 @@ fn main() -> std::io::Result<()> {
                             running = false
                         }
                         KeyCode::Tab => {
+                            scroll_offsets.insert(selected_idx, scroll_offset);
                             focused_panel = if focused_panel == 0 { 1 } else { 0 };
-                            if let Some(item) = sidebar_items.get(selected_idx) {
-                                match item {
-                                    SidebarItem::File(path) => {
-                                        current_content = parse_env_file(path);
-                                    }
-                                    SidebarItem::SystemEnv => {
-                                        current_content = env_vars.clone();
-                                    }
-                                }
-                            }
+                            let (content, offset) = switch_to_item(
+                                selected_idx,
+                                &sidebar_items,
+                                &env_vars,
+                                &mut scroll_offsets,
+                            );
+                            current_content = content;
+                            scroll_offset = offset;
                         }
                         KeyCode::Up => {
                             if focused_panel == 0 {
@@ -357,18 +354,16 @@ fn main() -> std::io::Result<()> {
                                     sidebar_scroll -= 1;
                                 }
                                 if selected_idx > 0 {
+                                    scroll_offsets.insert(selected_idx, scroll_offset);
                                     selected_idx -= 1;
-                                    if let Some(item) = sidebar_items.get(selected_idx) {
-                                        match item {
-                                            SidebarItem::File(path) => {
-                                                current_content = parse_env_file(path);
-                                            }
-                                            SidebarItem::SystemEnv => {
-                                                current_content =
-                                                    env_vars.iter().cloned().collect();
-                                            }
-                                        }
-                                    }
+                                    let (content, offset) = switch_to_item(
+                                        selected_idx,
+                                        &sidebar_items,
+                                        &env_vars,
+                                        &mut scroll_offsets,
+                                    );
+                                    current_content = content;
+                                    scroll_offset = offset;
                                 }
                             } else if scroll_offset >= 2 {
                                 scroll_offset -= 2;
@@ -377,22 +372,20 @@ fn main() -> std::io::Result<()> {
                         KeyCode::Down => {
                             if focused_panel == 0 {
                                 if selected_idx + 1 < sidebar_items.len() {
+                                    scroll_offsets.insert(selected_idx, scroll_offset);
                                     selected_idx += 1;
                                     if selected_idx >= sidebar_scroll + sidebar_visible {
                                         sidebar_scroll =
                                             selected_idx.saturating_sub(sidebar_visible - 1);
                                     }
-                                    if let Some(item) = sidebar_items.get(selected_idx) {
-                                        match item {
-                                            SidebarItem::File(path) => {
-                                                current_content = parse_env_file(path);
-                                            }
-                                            SidebarItem::SystemEnv => {
-                                                current_content =
-                                                    env_vars.iter().cloned().collect();
-                                            }
-                                        }
-                                    }
+                                    let (content, offset) = switch_to_item(
+                                        selected_idx,
+                                        &sidebar_items,
+                                        &env_vars,
+                                        &mut scroll_offsets,
+                                    );
+                                    current_content = content;
+                                    scroll_offset = offset;
                                 }
                             } else if scroll_offset + 40 < content_vars.len() * 2 {
                                 scroll_offset += 2;
@@ -400,17 +393,35 @@ fn main() -> std::io::Result<()> {
                         }
                         KeyCode::PageUp => {
                             if focused_panel == 0 {
+                                scroll_offsets.insert(selected_idx, scroll_offset);
                                 sidebar_scroll = sidebar_scroll.saturating_sub(sidebar_visible);
                                 selected_idx = sidebar_scroll;
+                                let (content, offset) = switch_to_item(
+                                    selected_idx,
+                                    &sidebar_items,
+                                    &env_vars,
+                                    &mut scroll_offsets,
+                                );
+                                current_content = content;
+                                scroll_offset = offset;
                             } else {
                                 scroll_offset = scroll_offset.saturating_sub(height * 2);
                             }
                         }
                         KeyCode::PageDown => {
                             if focused_panel == 0 {
+                                scroll_offsets.insert(selected_idx, scroll_offset);
                                 sidebar_scroll = (sidebar_scroll + sidebar_visible)
                                     .min(sidebar_items.len().saturating_sub(sidebar_visible));
                                 selected_idx = sidebar_scroll;
+                                let (content, offset) = switch_to_item(
+                                    selected_idx,
+                                    &sidebar_items,
+                                    &env_vars,
+                                    &mut scroll_offsets,
+                                );
+                                current_content = content;
+                                scroll_offset = offset;
                             } else {
                                 scroll_offset = (scroll_offset + height * 2)
                                     .min((content_vars.len() * 2).saturating_sub(1));
@@ -419,36 +430,32 @@ fn main() -> std::io::Result<()> {
                         KeyCode::Left => {
                             if focused_panel == 1 {
                                 focused_panel = 0;
-                                if let Some(item) = sidebar_items.get(selected_idx) {
-                                    match item {
-                                        SidebarItem::File(path) => {
-                                            current_content = parse_env_file(path);
-                                        }
-                                        SidebarItem::SystemEnv => {
-                                            current_content = env_vars.clone();
-                                        }
-                                    }
-                                }
+                                let (content, offset) = switch_to_item(
+                                    selected_idx,
+                                    &sidebar_items,
+                                    &env_vars,
+                                    &mut scroll_offsets,
+                                );
+                                current_content = content;
+                                scroll_offset = offset;
                             }
                         }
                         KeyCode::Right => {
                             if focused_panel == 0 && selected_idx + 1 < sidebar_items.len() {
+                                scroll_offsets.insert(selected_idx, scroll_offset);
                                 selected_idx += 1;
-                                scroll_offset = 0;
                                 if selected_idx >= sidebar_scroll + sidebar_visible {
                                     sidebar_scroll =
                                         selected_idx.saturating_sub(sidebar_visible - 1);
                                 }
-                                if let Some(item) = sidebar_items.get(selected_idx) {
-                                    match item {
-                                        SidebarItem::File(path) => {
-                                            current_content = parse_env_file(path);
-                                        }
-                                        SidebarItem::SystemEnv => {
-                                            current_content = env_vars.clone();
-                                        }
-                                    }
-                                }
+                                let (content, offset) = switch_to_item(
+                                    selected_idx,
+                                    &sidebar_items,
+                                    &env_vars,
+                                    &mut scroll_offsets,
+                                );
+                                current_content = content;
+                                scroll_offset = offset;
                             }
                         }
                         _ => {}

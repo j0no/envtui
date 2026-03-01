@@ -2,6 +2,10 @@
 
 A terminal UI application for viewing environment variables from .env files and system environment.
 
+## Screenshot
+
+![screenshot](screenshot.png)
+
 ## Features
 
 - View `.env` files from the current directory

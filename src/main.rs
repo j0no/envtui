@@ -2,7 +2,7 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     ExecutableCommand,
 };
-use opentui_rust::{terminal_size, Renderer, Rgba, Style};
+use opentui_rust::{buffer::BoxStyle, terminal_size, Renderer, Rgba, Style};
 use std::collections::HashMap;
 use std::env::vars_os;
 use std::fs;
@@ -78,7 +78,6 @@ fn parse_env_file(path: &PathBuf) -> Vec<(String, String)> {
     vars
 }
 
-
 fn switch_to_item(
     idx: usize,
     sidebar_items: &[SidebarItem],
@@ -148,31 +147,8 @@ fn main() -> std::io::Result<()> {
         let _total_files = sidebar_items.len();
 
         let border_color = if focused_panel == 0 { CYAN } else { GRAY };
-
-        buffer.draw_text(0, 0, "┌", Style::fg(border_color));
-        buffer.draw_text((sidebar_width - 1) as u32, 0, "┐", Style::fg(border_color));
-        for x in 1..sidebar_width - 1 {
-            buffer.draw_text(x as u32, 0, "─", Style::fg(border_color));
-        }
-        for y in 1..height - 1 {
-            buffer.draw_text(0, y as u32, "│", Style::fg(border_color));
-            buffer.draw_text(
-                (sidebar_width - 1) as u32,
-                y as u32,
-                "│",
-                Style::fg(border_color),
-            );
-        }
-        buffer.draw_text(0, (height - 1) as u32, "└", Style::fg(border_color));
-        buffer.draw_text(
-            (sidebar_width - 1) as u32,
-            (height - 1) as u32,
-            "┘",
-            Style::fg(border_color),
-        );
-        for x in 1..sidebar_width - 1 {
-            buffer.draw_text(x as u32, (height - 1) as u32, "─", Style::fg(border_color));
-        }
+        let sidebar_box_style = BoxStyle::single(Style::fg(border_color));
+        buffer.draw_box(0, 0, sidebar_width as u32, height as u32, sidebar_box_style);
 
         buffer.draw_text(1, 0, "Select Source", Style::fg(GRAY));
 
@@ -217,41 +193,14 @@ fn main() -> std::io::Result<()> {
         let _content_width = width - sidebar_width - padding;
 
         let content_border_color = if focused_panel == 1 { CYAN } else { GRAY };
-
-        buffer.draw_text(content_x, 0, "┌", Style::fg(content_border_color));
-        buffer.draw_text((width - 1) as u32, 0, "┐", Style::fg(content_border_color));
-        for x in sidebar_width + 1..width - 1 {
-            buffer.draw_text(x as u32, 0, "─", Style::fg(content_border_color));
-        }
-        for y in 1..height - 1 {
-            buffer.draw_text(content_x, y as u32, "│", Style::fg(content_border_color));
-            buffer.draw_text(
-                (width - 1) as u32,
-                y as u32,
-                "│",
-                Style::fg(content_border_color),
-            );
-        }
-        buffer.draw_text(
+        let content_box_style = BoxStyle::single(Style::fg(content_border_color));
+        buffer.draw_box(
             content_x,
-            (height - 1) as u32,
-            "└",
-            Style::fg(content_border_color),
+            0,
+            width as u32 - content_x,
+            height as u32,
+            content_box_style,
         );
-        buffer.draw_text(
-            (width - 1) as u32,
-            (height - 1) as u32,
-            "┘",
-            Style::fg(content_border_color),
-        );
-        for x in sidebar_width + 1..width - 1 {
-            buffer.draw_text(
-                x as u32,
-                (height - 1) as u32,
-                "─",
-                Style::fg(content_border_color),
-            );
-        }
 
         buffer.draw_text(content_x + 1, 0, "Variables", Style::fg(GRAY));
 

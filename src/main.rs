@@ -13,6 +13,7 @@ const CYAN: Rgba = Rgba::new(0.0, 1.0, 1.0, 1.0);
 const GRAY: Rgba = Rgba::new(0.5, 0.5, 0.5, 1.0);
 const SELECTED_BG: Rgba = Rgba::new(0.3, 0.3, 0.5, 1.0);
 const YELLOW: Rgba = Rgba::new(1.0, 1.0, 0.0, 1.0);
+const DODGER_BLUE: Rgba = Rgba::new(0.12, 0.56, 1.0, 1.0);
 
 enum SidebarItem {
     File(PathBuf),
@@ -217,16 +218,9 @@ fn main() -> std::io::Result<()> {
         let content_focus_indicator = if focused_panel == 1 { "» " } else { "  " };
         buffer.draw_text(content_x, 1, content_focus_indicator, Style::fg(CYAN));
 
-        let key_max_len = (width - sidebar_width - padding - 4) as u32;
-        let val_max_len = (width - sidebar_width - padding - 4) as u32;
-
         let content_vars = &current_content;
 
-        let scroll_info = format!(
-            " ({}/{})",
-            scroll_offset / 2 + 1,
-            (content_vars.len() * 2 + 1) / 2
-        );
+        let scroll_info = format!(" ({}/{})", scroll_offset + 1, content_vars.len());
         let scroll_x = (content_padding_x as usize + title.len()) as u32;
         buffer.draw_text(scroll_x, 1, &scroll_info, Style::fg(GRAY));
 
@@ -239,35 +233,38 @@ fn main() -> std::io::Result<()> {
             .take(visible_rows)
         {
             let line_idx = i - scroll_offset;
-            let y_key: u32 = (3 + line_idx * 2) as u32;
-            let y_val: u32 = (4 + line_idx * 2) as u32;
+            let y: u32 = (3 + line_idx) as u32;
 
-            if y_val as usize >= height - 1 {
+            if y as usize >= height - 1 {
                 break;
             }
 
-            let key_display = if key.len() > key_max_len as usize {
-                format!("{}...", &key[..(key_max_len as usize).saturating_sub(3)])
+            let key_max_len = (width - sidebar_width - padding - 6) as usize;
+            let val_max_len = (width - sidebar_width - padding - 6) as usize;
+
+            let key_display = if key.len() > key_max_len {
+                format!("{}...", &key[..key_max_len.saturating_sub(3)])
             } else {
                 key.clone()
             };
-            let val_display = if val.len() > val_max_len as usize {
-                format!("{}...", &val[..(val_max_len as usize).saturating_sub(3)])
+            let val_display = if val.len() > val_max_len {
+                format!("{}...", &val[..val_max_len.saturating_sub(3)])
             } else {
                 val.clone()
             };
 
+            buffer.draw_text(content_padding_x, y, &key_display, Style::fg(DODGER_BLUE));
             buffer.draw_text(
-                content_padding_x,
-                y_key,
-                &key_display,
-                Style::fg(Rgba::GREEN),
+                content_padding_x + key_display.len() as u32 + 1,
+                y,
+                "=",
+                Style::fg(GRAY),
             );
             buffer.draw_text(
-                content_padding_x,
-                y_val,
+                content_padding_x + key_display.len() as u32 + 3,
+                y,
                 &val_display,
-                Style::fg(Rgba::WHITE),
+                Style::fg(YELLOW),
             );
         }
 
@@ -317,8 +314,8 @@ fn main() -> std::io::Result<()> {
                                     current_content = content;
                                     scroll_offset = offset;
                                 }
-                            } else if scroll_offset >= 2 {
-                                scroll_offset -= 2;
+                            } else if scroll_offset >= 1 {
+                                scroll_offset -= 1;
                             }
                         }
                         KeyCode::Down => {
@@ -339,8 +336,8 @@ fn main() -> std::io::Result<()> {
                                     current_content = content;
                                     scroll_offset = offset;
                                 }
-                            } else if scroll_offset + 40 < content_vars.len() * 2 {
-                                scroll_offset += 2;
+                            } else if scroll_offset + 40 < content_vars.len() {
+                                scroll_offset += 1;
                             }
                         }
                         KeyCode::PageUp => {
@@ -357,7 +354,7 @@ fn main() -> std::io::Result<()> {
                                 current_content = content;
                                 scroll_offset = offset;
                             } else {
-                                scroll_offset = scroll_offset.saturating_sub(height * 2);
+                                scroll_offset = scroll_offset.saturating_sub(height as usize);
                             }
                         }
                         KeyCode::PageDown => {
@@ -375,8 +372,8 @@ fn main() -> std::io::Result<()> {
                                 current_content = content;
                                 scroll_offset = offset;
                             } else {
-                                scroll_offset = (scroll_offset + height * 2)
-                                    .min((content_vars.len() * 2).saturating_sub(1));
+                                scroll_offset = (scroll_offset + height as usize)
+                                    .min(content_vars.len().saturating_sub(1));
                             }
                         }
                         KeyCode::Left => {

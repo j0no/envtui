@@ -3,17 +3,13 @@ use crossterm::{
     ExecutableCommand,
 };
 use opentui_rust::{buffer::BoxStyle, terminal_size, Renderer, Rgba, Style};
+mod colors;
+use colors::{CYAN, DODGER_BLUE, GRAY, SELECTED_BG, YELLOW};
 use std::collections::HashMap;
 use std::env::vars_os;
 use std::fs;
 use std::io::stdout;
 use std::path::PathBuf;
-
-const CYAN: Rgba = Rgba::new(0.0, 1.0, 1.0, 1.0);
-const GRAY: Rgba = Rgba::new(0.5, 0.5, 0.5, 1.0);
-const SELECTED_BG: Rgba = Rgba::new(0.3, 0.3, 0.5, 1.0);
-const YELLOW: Rgba = Rgba::new(1.0, 1.0, 0.0, 1.0);
-const DODGER_BLUE: Rgba = Rgba::new(0.12, 0.56, 1.0, 1.0);
 
 enum SidebarItem {
     File(PathBuf),

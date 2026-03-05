@@ -26,6 +26,7 @@ fn get_terminal_size() -> (u32, u32) {
 }
 
 fn get_sidebar_items() -> Vec<SidebarItem> {
+    // Get items from current and filter for env files
     let mut items: Vec<SidebarItem> = fs::read_dir(".")
         .map(|entries| {
             entries
@@ -41,7 +42,7 @@ fn get_sidebar_items() -> Vec<SidebarItem> {
                 .collect()
         })
         .unwrap_or_default();
-
+    // Sort Alphabetical
     items.sort_by(|a, b| match (a, b) {
         (SidebarItem::File(path_a), SidebarItem::File(path_b)) => {
             let name_a = path_a.file_name().and_then(|n| n.to_str()).unwrap_or("");
@@ -50,11 +51,12 @@ fn get_sidebar_items() -> Vec<SidebarItem> {
         }
         _ => std::cmp::Ordering::Equal,
     });
-
+    // Added SystemEnv type
     items.push(SidebarItem::SystemEnv);
     items
 }
 
+// Get env vars
 fn parse_env_file(path: &PathBuf) -> Vec<(String, String)> {
     let content = fs::read_to_string(path).unwrap_or_default();
     let mut vars: Vec<(String, String)> = Vec::new();
@@ -75,6 +77,7 @@ fn parse_env_file(path: &PathBuf) -> Vec<(String, String)> {
 
     vars
 }
+
 
 fn switch_to_item(
     idx: usize,
@@ -176,6 +179,7 @@ fn main() -> std::io::Result<()> {
         let sidebar_focus_indicator = if focused_panel == 0 { "» " } else { "  " };
         buffer.draw_text(1, 1, sidebar_focus_indicator, Style::fg(CYAN));
 
+        // Write items to content panel
         for (i, item) in sidebar_items
             .iter()
             .enumerate()

@@ -116,7 +116,14 @@ fn main() -> std::io::Result<()> {
     stdout().execute(crossterm::terminal::EnterAlternateScreen)?;
     crossterm::terminal::enable_raw_mode()?;
 
+    // =========================================================================
+    // RENDER LOOP
+    // =========================================================================
+
     while running {
+        // ---------------------------------------------------------------------
+        // Terminal resize handling
+        // ---------------------------------------------------------------------
         let (term_width, term_height) = get_terminal_size();
         let buf_width = renderer.buffer().size().0;
         let buf_height = renderer.buffer().size().1;
@@ -132,6 +139,9 @@ fn main() -> std::io::Result<()> {
         let sidebar_width = 25.min(width / 3);
         let _main_width = width.saturating_sub(sidebar_width);
 
+        // ---------------------------------------------------------------------
+        // Clear buffer
+        // ---------------------------------------------------------------------
         buffer.clear(Rgba::BLACK);
 
         for y in 0..height {
@@ -143,6 +153,9 @@ fn main() -> std::io::Result<()> {
         let sidebar_visible = height.saturating_sub(2);
         let _total_files = sidebar_items.len();
 
+        // ---------------------------------------------------------------------
+        // Sidebar: file list panel
+        // ---------------------------------------------------------------------
         let border_color = if focused_panel == 0 { CYAN } else { GRAY };
         let sidebar_box_style = BoxStyle::single(Style::fg(border_color));
         buffer.draw_box(0, 0, sidebar_width as u32, height as u32, sidebar_box_style);
@@ -184,6 +197,9 @@ fn main() -> std::io::Result<()> {
             }
         }
 
+        // ---------------------------------------------------------------------
+        // Content panel: variables list
+        // ---------------------------------------------------------------------
         let padding = 2;
         let content_x = sidebar_width as u32 + 2;
         let content_padding_x = content_x + padding as u32;
@@ -264,12 +280,21 @@ fn main() -> std::io::Result<()> {
             );
         }
 
+        // ---------------------------------------------------------------------
+        // Footer
+        // ---------------------------------------------------------------------
         let help = "(arrows: move, Tab: switch, Ctrl+C: quit)";
         let footer_y = (height - 1) as u32;
         buffer.draw_text(1, footer_y, &help, Style::fg(GRAY));
 
+        // ---------------------------------------------------------------------
+        // Present frame
+        // ---------------------------------------------------------------------
         renderer.present()?;
 
+        // ---------------------------------------------------------------------
+        // Input handling
+        // ---------------------------------------------------------------------
         if event::poll(std::time::Duration::from_millis(16))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
@@ -408,6 +433,9 @@ fn main() -> std::io::Result<()> {
                 }
             }
         }
+        // ---------------------------------------------------------------------
+        // End render loop
+        // ---------------------------------------------------------------------
     }
 
     crossterm::terminal::disable_raw_mode()?;

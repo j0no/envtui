@@ -151,7 +151,7 @@ fn main() -> std::io::Result<()> {
         }
 
         let sidebar_visible = height.saturating_sub(2);
-        let _total_files = sidebar_items.len();
+        let visible_rows = height.saturating_sub(4);
 
         // ---------------------------------------------------------------------
         // Sidebar: file list panel
@@ -232,11 +232,13 @@ fn main() -> std::io::Result<()> {
 
         let content_vars = &current_content;
 
-        let scroll_info = format!(" ({}/{})", scroll_offset + 1, content_vars.len());
+        let scroll_info = if content_vars.is_empty() {
+            " (0/0)".to_string()
+        } else {
+            format!(" ({}/{})", scroll_offset + 1, content_vars.len())
+        };
         let scroll_x = (content_padding_x as usize + title.len()) as u32;
         buffer.draw_text(scroll_x, 1, &scroll_info, Style::fg(GRAY));
-
-        let visible_rows = height.saturating_sub(4);
 
         for (i, (key, val)) in content_vars
             .iter()
@@ -357,7 +359,7 @@ fn main() -> std::io::Result<()> {
                                     current_content = content;
                                     scroll_offset = offset;
                                 }
-                            } else if scroll_offset + 40 < content_vars.len() {
+                            } else if scroll_offset + visible_rows < content_vars.len() {
                                 scroll_offset += 1;
                             }
                         }
@@ -375,7 +377,7 @@ fn main() -> std::io::Result<()> {
                                 current_content = content;
                                 scroll_offset = offset;
                             } else {
-                                scroll_offset = scroll_offset.saturating_sub(height as usize);
+                                scroll_offset = scroll_offset.saturating_sub(visible_rows);
                             }
                         }
                         KeyCode::PageDown => {
@@ -393,8 +395,8 @@ fn main() -> std::io::Result<()> {
                                 current_content = content;
                                 scroll_offset = offset;
                             } else {
-                                scroll_offset = (scroll_offset + height as usize)
-                                    .min(content_vars.len().saturating_sub(1));
+                                let max_scroll = content_vars.len().saturating_sub(visible_rows);
+                                scroll_offset = (scroll_offset + visible_rows).min(max_scroll);
                             }
                         }
                         KeyCode::Left => {
